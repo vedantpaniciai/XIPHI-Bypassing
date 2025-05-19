@@ -1,10 +1,16 @@
 from flask import Flask, request, jsonify, render_template_string
-import os
 import json
 
 app = Flask(__name__)
 
 latest_payload = {}
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST'
+    return response
 
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
@@ -38,6 +44,7 @@ HTML_TEMPLATE = '''
     <div class="top-bar">
         <h2>Salesforce Authenticator</h2>
     </div>
+
     <div id="secretDisplay">{{ data }}</div>
 </body>
 </html>
@@ -49,26 +56,17 @@ def home():
 
     if request.method == 'POST':
         try:
-            # Try JSON body
             latest_payload = request.get_json(force=True)
-            print("✅ JSON Received from Salesforce:")
-            print(json.dumps(latest_payload, indent=2))
-        except Exception as e:
-            # Fallback to form data
+            print("✅ JSON received:", latest_payload)
+        except Exception:
             latest_payload = request.form.to_dict()
-            print("⚠️ Form Data Fallback:")
-            print(latest_payload)
-
-        print("📩 Headers:")
-        print(dict(request.headers))
+            print("⚠️ Fallback to form:", latest_payload)
 
         return jsonify({"message": "Data received", "data": latest_payload}), 200
 
-    # Format JSON payload for better UI rendering
-    formatted_data = (
-        json.dumps(latest_payload, indent=2) if latest_payload else "No data submitted yet."
-    )
-    return render_template_string(HTML_TEMPLATE, data=formatted_data)
+    # Display stored payload
+    display = json.dumps(latest_payload, indent=2) if latest_payload else "No data submitted yet."
+    return render_template_string(HTML_TEMPLATE, data=display)
 
 if __name__ == '__main__':
     app.run(debug=True)
