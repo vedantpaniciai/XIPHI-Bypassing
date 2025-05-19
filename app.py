@@ -7,6 +7,9 @@ app = Flask(__name__)
 # In-memory store
 latest_payload = {}
 
+# Hosted Salesforce display app
+XIPHI_URL = "https://ciaifastapp-dev-ed.develop.lightning.force.com/lightning/n/ci_fast__FastApp"
+
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
@@ -57,19 +60,31 @@ HTML_TEMPLATE = '''
 def home():
     global latest_payload
     if request.method == 'POST':
-        # Try to get JSON, fall back to form if needed
         try:
             latest_payload = request.get_json(force=True)
         except:
             latest_payload = request.form.to_dict()
         return jsonify({"message": "Data received", "data": latest_payload}), 200
 
-    # Render last received data on GET
     return render_template_string(HTML_TEMPLATE, data=latest_payload or "No data submitted yet.")
 
 @app.route('/submitted-data', methods=['GET'])
 def get_latest():
     return jsonify(latest_payload or {"message": "No data submitted yet."})
+
+@app.route('/forward-to-xiphi', methods=['POST'])
+def forward_to_xiphi():
+    try:
+        data = request.get_json(force=True)
+        # Forward to hosted XIPHI app
+        resp = requests.post(XIPHI_URL, json=data)
+        return jsonify({
+            "message": "Data forwarded to salesforcexiphi",
+            "xiphi_status": resp.status_code,
+            "xiphi_response": resp.json()
+        }), resp.status_code
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
