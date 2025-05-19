@@ -6,10 +6,9 @@ import hashlib
 
 app = Flask(__name__)
 
-# Your Canvas Consumer Secret (use env var in production)
-CONSUMER_SECRET = 'FFE6251BCA3AFB6A3301E39F43597EC67439F8C58EE5F74A0992F40CEA1DC17D'
+# Replace with your actual Canvas Consumer Secret from Salesforce Connected App
+CONSUMER_SECRET = 'FFE6251BCA3AFB6A3301E39F43597EC67439F8C58EE5F74A0992F40CEA1DC17D'  # Replace with your actual consumer secret
 
-# In-memory store
 latest_payload = {}
 
 @app.after_request
@@ -51,7 +50,6 @@ HTML_TEMPLATE = '''
     <div class="top-bar">
         <h2>Salesforce Authenticator</h2>
     </div>
-
     <div id="secretDisplay">{{ data }}</div>
 </body>
 </html>
@@ -59,15 +57,20 @@ HTML_TEMPLATE = '''
 
 def decode_signed_request(signed_request, secret):
     try:
-        encoded_sig, payload = signed_request.split('.', 1)
-        sig = base64.urlsafe_b64decode(encoded_sig + '==')
-        data_json = base64.urlsafe_b64decode(payload + '==').decode('utf-8')
-        data = json.loads(data_json)
+        encoded_sig, encoded_payload = signed_request.split('.', 1)
 
-        # Verify the signature
+        # Decode Base64 safely (padding if needed)
+        def b64_decode(data):
+            data += '=' * (4 - len(data) % 4)
+            return base64.urlsafe_b64decode(data)
+
+        sig = b64_decode(encoded_sig)
+        payload = b64_decode(encoded_payload).decode('utf-8')
+        data = json.loads(payload)
+
         expected_sig = hmac.new(
             secret.encode('utf-8'),
-            msg=payload.encode('utf-8'),
+            msg=encoded_payload.encode('utf-8'),
             digestmod=hashlib.sha256
         ).digest()
 
@@ -75,6 +78,7 @@ def decode_signed_request(signed_request, secret):
             return {"error": "Signature mismatch"}, False
 
         return data, True
+
     except Exception as e:
         return {"error": f"Decoding failed: {str(e)}"}, False
 
@@ -88,16 +92,12 @@ def home():
             return jsonify({"error": "Missing signed_request"}), 400
 
         decoded_data, valid = decode_signed_request(signed_request, CONSUMER_SECRET)
-        latest_payload.update(decoded_data)
-        print("📥 Received:", decoded_data)
+        latest_payload = decoded_data
+        print("📥 Received from Salesforce:", decoded_data)
 
-        return jsonify({
-            "message": "Signed request processed",
-            "valid": valid,
-            "data": decoded_data
-        }), 200
+        return '', 204  # Important: Salesforce expects no content on POST
 
-    # Display latest decoded payload
+    # GET: Show the stored signed request
     display = json.dumps(latest_payload, indent=2) if latest_payload else "No data submitted yet."
     return render_template_string(HTML_TEMPLATE, data=display)
 
