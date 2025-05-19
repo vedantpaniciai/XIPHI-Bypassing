@@ -1,9 +1,9 @@
 from flask import Flask, request, jsonify, render_template_string
 import os
+import json
 
 app = Flask(__name__)
 
-# Store latest payload
 latest_payload = {}
 
 HTML_TEMPLATE = '''
@@ -38,7 +38,6 @@ HTML_TEMPLATE = '''
     <div class="top-bar">
         <h2>Salesforce Authenticator</h2>
     </div>
-
     <div id="secretDisplay">{{ data }}</div>
 </body>
 </html>
@@ -48,19 +47,28 @@ HTML_TEMPLATE = '''
 def home():
     global latest_payload
 
-    # If Salesforce POSTs data, store it
     if request.method == 'POST':
         try:
+            # Try JSON body
             latest_payload = request.get_json(force=True)
-        except:
+            print("✅ JSON Received from Salesforce:")
+            print(json.dumps(latest_payload, indent=2))
+        except Exception as e:
+            # Fallback to form data
             latest_payload = request.form.to_dict()
+            print("⚠️ Form Data Fallback:")
+            print(latest_payload)
+
+        print("📩 Headers:")
+        print(dict(request.headers))
+
         return jsonify({"message": "Data received", "data": latest_payload}), 200
 
-    # On GET, show stored data in UI
-    display = (
-        latest_payload if latest_payload else "No data submitted yet."
+    # Format JSON payload for better UI rendering
+    formatted_data = (
+        json.dumps(latest_payload, indent=2) if latest_payload else "No data submitted yet."
     )
-    return render_template_string(HTML_TEMPLATE, data=display)
+    return render_template_string(HTML_TEMPLATE, data=formatted_data)
 
 if __name__ == '__main__':
     app.run(debug=True)
