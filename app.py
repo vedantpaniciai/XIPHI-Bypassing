@@ -7,7 +7,7 @@ import hashlib
 app = Flask(__name__)
 
 # Replace with your actual Canvas Consumer Secret from Salesforce Connected App
-CONSUMER_SECRET = 'FFE6251BCA3AFB6A3301E39F43597EC67439F8C58EE5F74A0992F40CEA1DC17D'  # Replace with your actual consumer secret
+CONSUMER_SECRET = 'FFE6251BCA3AFB6A3301E39F43597EC67439F8C58EE5F74A0992F40CEA1DC17D'
 
 latest_payload = {}
 
@@ -48,7 +48,7 @@ HTML_TEMPLATE = '''
 </head>
 <body>
     <div class="top-bar">
-        <h2>Salesforce Authenticator</h2>
+        <h2>Salesforce Canvas Payload Viewer</h2>
     </div>
     <div id="secretDisplay">{{ data }}</div>
 </body>
@@ -59,14 +59,14 @@ def decode_signed_request(signed_request, secret):
     try:
         encoded_sig, encoded_payload = signed_request.split('.', 1)
 
-        # Decode Base64 safely (padding if needed)
+        # Proper base64 decode (with padding fix)
         def b64_decode(data):
-            data += '=' * (4 - len(data) % 4)
-            return base64.urlsafe_b64decode(data)
+            padding = '=' * (4 - len(data) % 4) if len(data) % 4 != 0 else ''
+            return base64.urlsafe_b64decode(data + padding)
 
         sig = b64_decode(encoded_sig)
-        payload = b64_decode(encoded_payload).decode('utf-8')
-        data = json.loads(payload)
+        payload_json = b64_decode(encoded_payload).decode('utf-8')
+        data = json.loads(payload_json)
 
         expected_sig = hmac.new(
             secret.encode('utf-8'),
@@ -95,9 +95,9 @@ def home():
         latest_payload = decoded_data
         print("📥 Received from Salesforce:", decoded_data)
 
-        return '', 204  # Important: Salesforce expects no content on POST
+        return '', 204  # Salesforce Canvas expects a 204 (no content) on POST success
 
-    # GET: Show the stored signed request
+    # GET method — used to view the last received payload
     display = json.dumps(latest_payload, indent=2) if latest_payload else "No data submitted yet."
     return render_template_string(HTML_TEMPLATE, data=display)
 
