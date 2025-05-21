@@ -18,11 +18,12 @@ def add_cors_headers(response):
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST'
     return response
 
-HTML_TEMPLATE = '''
+HTML_TEMPLATE = HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
 <head>
     <title>Salesforce Canvas Payload Viewer</title>
+    <script src="https://na1.visual.force.com/canvas/sdk/js/36.0/canvas-all.js"></script>
     <style>
         html, body {
             margin: 0;
@@ -53,21 +54,33 @@ HTML_TEMPLATE = '''
     <div id="secretDisplay">{{ data }}</div>
 
     <script>
-        // Extract signed_request from URL if available
-        const params = new URLSearchParams(window.location.search);
-        const signedRequest = params.get("signed_request");
-
-        if (signedRequest) {
-            fetch("/", {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: new URLSearchParams({ signed_request: signedRequest })
-            }).then(() => location.reload());
-        }
+        Sfdc.canvas && Sfdc.canvas.onload(function() {
+            console.log("✅ Canvas SDK loaded. Requesting context...");
+            Sfdc.canvas.client.getContext(function(response) {
+                if (response && response.signedRequest) {
+                    console.log("📦 Got signedRequest, posting...");
+                    fetch("/", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/x-www-form-urlencoded"
+                        },
+                        body: new URLSearchParams({
+                            signed_request: response.signedRequest
+                        })
+                    }).then(() => {
+                        console.log("✅ POST successful, reloading...");
+                        window.location.reload();
+                    });
+                } else {
+                    console.warn("⚠️ No signedRequest in context response:", response);
+                }
+            });
+        });
     </script>
 </body>
 </html>
 '''
+
 
 def decode_signed_request(signed_request, secret):
     try:
