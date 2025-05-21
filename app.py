@@ -18,12 +18,12 @@ def add_cors_headers(response):
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST'
     return response
 
-HTML_TEMPLATE = HTML_TEMPLATE = '''
+HTML_TEMPLATE = HTML_TEMPLATE = HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
 <head>
     <title>Salesforce Canvas Payload Viewer</title>
-    <script src="https://na1.visual.force.com/canvas/sdk/js/36.0/canvas-all.js"></script>
+    <script src="https://login.salesforce.com/canvas/sdk/js/63.0/canvas-all.js"></script>
     <style>
         html, body {
             margin: 0;
@@ -80,6 +80,7 @@ HTML_TEMPLATE = HTML_TEMPLATE = '''
 </body>
 </html>
 '''
+
 
 
 def decode_signed_request(signed_request, secret):
