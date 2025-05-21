@@ -6,7 +6,7 @@ import hashlib
 
 app = Flask(__name__)
 
-# Replace with your actual Canvas Consumer Secret from Salesforce Connected App
+# Salesforce Connected App Consumer Secret
 CONSUMER_SECRET = 'FFE6251BCA3AFB6A3301E39F43597EC67439F8C58EE5F74A0992F40CEA1DC17D'
 
 latest_payload = {}
@@ -18,7 +18,7 @@ def add_cors_headers(response):
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST'
     return response
 
-HTML_TEMPLATE = HTML_TEMPLATE = HTML_TEMPLATE = '''
+HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
 <head>
@@ -53,42 +53,39 @@ HTML_TEMPLATE = HTML_TEMPLATE = HTML_TEMPLATE = '''
     </div>
     <div id="secretDisplay">{{ data }}</div>
 
-<script>
-    window.onload = function () {
-        console.log("📢 Page loaded. Requesting Canvas context...");
-        if (typeof Sfdc === "undefined" || typeof Sfdc.canvas === "undefined") {
-            console.error("❌ Sfdc.canvas is not available. SDK may not have loaded.");
-            return;
-        }
-
-        Sfdc.canvas.client.getContext(function (response) {
-            if (response && response.signedRequest) {
-                console.log("📦 Got signedRequest. Sending to backend...");
-
-                fetch("/", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/x-www-form-urlencoded"
-                    },
-                    body: new URLSearchParams({
-                        signed_request: response.signedRequest
-                    })
-                }).then(() => {
-                    console.log("✅ POST successful. Reloading...");
-                    window.location.reload();
-                });
-            } else {
-                console.warn("⚠️ No signedRequest found in context response:", response);
+    <script>
+        window.onload = function () {
+            console.log("📢 Page loaded. Requesting Canvas context...");
+            if (typeof Sfdc === "undefined" || typeof Sfdc.canvas === "undefined") {
+                console.error("❌ Sfdc.canvas is not available. SDK may not have loaded.");
+                return;
             }
-        });
-    };
-</script>
 
+            Sfdc.canvas.client.getContext(function (response) {
+                if (response && response.signedRequest) {
+                    console.log("📦 Got signedRequest. Sending to backend...");
+
+                    fetch("/", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/x-www-form-urlencoded"
+                        },
+                        body: new URLSearchParams({
+                            signed_request: response.signedRequest
+                        })
+                    }).then(() => {
+                        console.log("✅ POST successful. Reloading...");
+                        window.location.reload();
+                    });
+                } else {
+                    console.warn("⚠️ No signedRequest found in context response:", response);
+                }
+            });
+        };
+    </script>
 </body>
 </html>
 '''
-
-
 
 def decode_signed_request(signed_request, secret):
     try:
