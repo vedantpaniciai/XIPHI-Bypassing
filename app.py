@@ -87,19 +87,23 @@ def home():
     global latest_payload
 
     if request.method == 'POST':
+        print("🔄 POST received")
+        print("Form data:", request.form)
+
         signed_request = request.form.get('signed_request')
         if not signed_request:
             return jsonify({"error": "Missing signed_request"}), 400
 
         decoded_data, valid = decode_signed_request(signed_request, CONSUMER_SECRET)
         latest_payload = decoded_data
-        print("📥 Received from Salesforce:", decoded_data)
+        print("📥 Decoded from Salesforce:", decoded_data)
 
-        return '', 204  # Salesforce Canvas expects a 204 (no content) on POST success
+        return '', 204
 
-    # GET method — used to view the last received payload
+    print("👀 GET received")
     display = json.dumps(latest_payload, indent=2) if latest_payload else "No data submitted yet."
     return render_template_string(HTML_TEMPLATE, data=display)
+
 
 if __name__ == '__main__':
     app.run(debug=True)
