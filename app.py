@@ -53,30 +53,37 @@ HTML_TEMPLATE = HTML_TEMPLATE = HTML_TEMPLATE = '''
     </div>
     <div id="secretDisplay">{{ data }}</div>
 
-    <script>
-        Sfdc.canvas && Sfdc.canvas.onload(function() {
-            console.log("✅ Canvas SDK loaded. Requesting context...");
-            Sfdc.canvas.client.getContext(function(response) {
-                if (response && response.signedRequest) {
-                    console.log("📦 Got signedRequest, posting...");
-                    fetch("/", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/x-www-form-urlencoded"
-                        },
-                        body: new URLSearchParams({
-                            signed_request: response.signedRequest
-                        })
-                    }).then(() => {
-                        console.log("✅ POST successful, reloading...");
-                        window.location.reload();
-                    });
-                } else {
-                    console.warn("⚠️ No signedRequest in context response:", response);
-                }
-            });
+<script>
+    window.onload = function () {
+        console.log("📢 Page loaded. Requesting Canvas context...");
+        if (typeof Sfdc === "undefined" || typeof Sfdc.canvas === "undefined") {
+            console.error("❌ Sfdc.canvas is not available. SDK may not have loaded.");
+            return;
+        }
+
+        Sfdc.canvas.client.getContext(function (response) {
+            if (response && response.signedRequest) {
+                console.log("📦 Got signedRequest. Sending to backend...");
+
+                fetch("/", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                    body: new URLSearchParams({
+                        signed_request: response.signedRequest
+                    })
+                }).then(() => {
+                    console.log("✅ POST successful. Reloading...");
+                    window.location.reload();
+                });
+            } else {
+                console.warn("⚠️ No signedRequest found in context response:", response);
+            }
         });
-    </script>
+    };
+</script>
+
 </body>
 </html>
 '''
