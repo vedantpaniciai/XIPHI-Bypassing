@@ -23,7 +23,6 @@ HTML_TEMPLATE = '''
 <html>
 <head>
     <title>Salesforce Canvas Payload Viewer</title>
-    <script src="https://login.salesforce.com/canvas/sdk/js/63.0/canvas-all.js"></script>
     <style>
         html, body {
             margin: 0;
@@ -54,34 +53,23 @@ HTML_TEMPLATE = '''
     <div id="secretDisplay">{{ data }}</div>
 
     <script>
-        window.onload = function () {
-            console.log("📢 Page loaded. Requesting Canvas context...");
-            if (typeof Sfdc === "undefined" || typeof Sfdc.canvas === "undefined") {
-                console.error("❌ Sfdc.canvas is not available. SDK may not have loaded.");
-                return;
-            }
+        // Try to read signed_request from query param and POST it
+        const params = new URLSearchParams(window.location.search);
+        const signedRequest = params.get("signed_request");
 
-            Sfdc.canvas.client.getContext(function (response) {
-                if (response && response.signedRequest) {
-                    console.log("📦 Got signedRequest. Sending to backend...");
-
-                    fetch("/", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/x-www-form-urlencoded"
-                        },
-                        body: new URLSearchParams({
-                            signed_request: response.signedRequest
-                        })
-                    }).then(() => {
-                        console.log("✅ POST successful. Reloading...");
-                        window.location.reload();
-                    });
-                } else {
-                    console.warn("⚠️ No signedRequest found in context response:", response);
-                }
+        if (signedRequest) {
+            console.log("📦 Found signed_request in URL, posting...");
+            fetch("/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded"
+                },
+                body: new URLSearchParams({ signed_request: signedRequest })
+            }).then(() => {
+                console.log("✅ POST complete, reloading...");
+                window.location.href = "/";
             });
-        };
+        }
     </script>
 </body>
 </html>
@@ -127,7 +115,7 @@ def home():
 
         decoded_data, valid = decode_signed_request(signed_request, CONSUMER_SECRET)
         latest_payload = decoded_data
-        print("📥 Decoded from Salesforce:", json.dumps(decoded_data, indent=2))
+        print("📥 Decoded from Salesforce:\n", json.dumps(decoded_data, indent=2))
 
         return '', 204
 
