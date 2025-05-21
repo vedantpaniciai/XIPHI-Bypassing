@@ -6,7 +6,7 @@ import hashlib
 
 app = Flask(__name__)
 
-# Connected App Consumer Secret
+# Replace with your actual Connected App Consumer Secret
 CONSUMER_SECRET = 'FFE6251BCA3AFB6A3301E39F43597EC67439F8C58EE5F74A0992F40CEA1DC17D'
 
 latest_payload = {}
@@ -54,25 +54,24 @@ HTML_TEMPLATE = '''
     <div id="secretDisplay">{{ data }}</div>
 
     <script>
-        // Wait until Canvas is fully initialized
-        Sfdc.canvas.oauth.init(function(response) {
-            if (response && response.signedRequest) {
-                console.log("✅ Canvas initialized. Sending signed_request...");
-
+        Sfdc.canvas.onReady(function() {
+            const sr = Sfdc.canvas.context().signedRequest;
+            if (sr) {
+                console.log("✅ Signed Request found. Sending to backend...");
                 fetch("/", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/x-www-form-urlencoded"
                     },
                     body: new URLSearchParams({
-                        signed_request: response.signedRequest
+                        signed_request: sr
                     })
                 }).then(() => {
-                    console.log("✅ POST done. Reloading view...");
+                    console.log("✅ POST complete. Reloading...");
                     window.location.href = "/";
                 });
             } else {
-                console.warn("⚠️ No signed request received from Salesforce.");
+                console.warn("⚠️ No signedRequest found in canvas context.");
             }
         });
     </script>
@@ -80,14 +79,13 @@ HTML_TEMPLATE = '''
 </html>
 '''
 
+def b64_decode(data):
+    data += '=' * (-len(data) % 4)
+    return base64.urlsafe_b64decode(data)
+
 def decode_signed_request(signed_request, secret):
     try:
         encoded_sig, encoded_payload = signed_request.split('.', 1)
-
-        def b64_decode(data):
-            padding = '=' * (4 - len(data) % 4) if len(data) % 4 != 0 else ''
-            return base64.urlsafe_b64decode(data + padding)
-
         sig = b64_decode(encoded_sig)
         payload_json = b64_decode(encoded_payload).decode('utf-8')
         data = json.loads(payload_json)
