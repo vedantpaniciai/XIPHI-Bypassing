@@ -22,7 +22,7 @@ HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Salesforce Authenticator</title>
+    <title>Salesforce Canvas Payload Viewer</title>
     <style>
         html, body {
             margin: 0;
@@ -51,6 +51,20 @@ HTML_TEMPLATE = '''
         <h2>Salesforce Canvas Payload Viewer</h2>
     </div>
     <div id="secretDisplay">{{ data }}</div>
+
+    <script>
+        // Extract signed_request from URL if available
+        const params = new URLSearchParams(window.location.search);
+        const signedRequest = params.get("signed_request");
+
+        if (signedRequest) {
+            fetch("/", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({ signed_request: signedRequest })
+            }).then(() => location.reload());
+        }
+    </script>
 </body>
 </html>
 '''
@@ -59,7 +73,6 @@ def decode_signed_request(signed_request, secret):
     try:
         encoded_sig, encoded_payload = signed_request.split('.', 1)
 
-        # Proper base64 decode (with padding fix)
         def b64_decode(data):
             padding = '=' * (4 - len(data) % 4) if len(data) % 4 != 0 else ''
             return base64.urlsafe_b64decode(data + padding)
@@ -96,14 +109,13 @@ def home():
 
         decoded_data, valid = decode_signed_request(signed_request, CONSUMER_SECRET)
         latest_payload = decoded_data
-        print("📥 Decoded from Salesforce:", decoded_data)
+        print("📥 Decoded from Salesforce:", json.dumps(decoded_data, indent=2))
 
         return '', 204
 
     print("👀 GET received")
     display = json.dumps(latest_payload, indent=2) if latest_payload else "No data submitted yet."
     return render_template_string(HTML_TEMPLATE, data=display)
-
 
 if __name__ == '__main__':
     app.run(debug=True)
