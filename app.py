@@ -6,7 +6,7 @@ import hashlib
 
 app = Flask(__name__)
 
-# Salesforce Connected App Consumer Secret
+# Connected App Consumer Secret
 CONSUMER_SECRET = 'FFE6251BCA3AFB6A3301E39F43597EC67439F8C58EE5F74A0992F40CEA1DC17D'
 
 latest_payload = {}
@@ -22,7 +22,8 @@ HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Salesforce Canvas Payload Viewer</title>
+    <title>Salesforce Canvas Viewer</title>
+    <script src="https://login.salesforce.com/canvas/sdk/js/63.0/canvas-all.js"></script>
     <style>
         html, body {
             margin: 0;
@@ -53,23 +54,27 @@ HTML_TEMPLATE = '''
     <div id="secretDisplay">{{ data }}</div>
 
     <script>
-        // Try to read signed_request from query param and POST it
-        const params = new URLSearchParams(window.location.search);
-        const signedRequest = params.get("signed_request");
+        // Wait until Canvas is fully initialized
+        Sfdc.canvas.oauth.init(function(response) {
+            if (response && response.signedRequest) {
+                console.log("✅ Canvas initialized. Sending signed_request...");
 
-        if (signedRequest) {
-            console.log("📦 Found signed_request in URL, posting...");
-            fetch("/", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/x-www-form-urlencoded"
-                },
-                body: new URLSearchParams({ signed_request: signedRequest })
-            }).then(() => {
-                console.log("✅ POST complete, reloading...");
-                window.location.href = "/";
-            });
-        }
+                fetch("/", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded"
+                    },
+                    body: new URLSearchParams({
+                        signed_request: response.signedRequest
+                    })
+                }).then(() => {
+                    console.log("✅ POST done. Reloading view...");
+                    window.location.href = "/";
+                });
+            } else {
+                console.warn("⚠️ No signed request received from Salesforce.");
+            }
+        });
     </script>
 </body>
 </html>
@@ -107,16 +112,14 @@ def home():
 
     if request.method == 'POST':
         print("🔄 POST received")
-        print("Form data:", request.form)
-
         signed_request = request.form.get('signed_request')
+
         if not signed_request:
             return jsonify({"error": "Missing signed_request"}), 400
 
         decoded_data, valid = decode_signed_request(signed_request, CONSUMER_SECRET)
         latest_payload = decoded_data
         print("📥 Decoded from Salesforce:\n", json.dumps(decoded_data, indent=2))
-
         return '', 204
 
     print("👀 GET received")
