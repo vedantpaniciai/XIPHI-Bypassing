@@ -1,83 +1,17 @@
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, render_template_string
 import base64
 import json
 import hmac
 import hashlib
+import time
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+
+# Constants
+CONSUMER_SECRET = 'FFE6251BCA3AFB6A3301E39F43597EC67439F8C58EE5F74A0992F40CEA1DC17D'
+SALESFORCE_CANVAS_APP_URL = "https://your-salesforce-instance.lightning.force.com/lightning/n/FastApp"  # 👈 Update this!
 
 app = Flask(__name__)
-
-# Replace with your actual Connected App Consumer Secret
-CONSUMER_SECRET = 'FFE6251BCA3AFB6A3301E39F43597EC67439F8C58EE5F74A0992F40CEA1DC17D'
-
-latest_payload = {}
-
-@app.after_request
-def add_cors_headers(response):
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST'
-    return response
-
-HTML_TEMPLATE = '''
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Salesforce Canvas Viewer</title>
-    <script src="https://login.salesforce.com/canvas/sdk/js/63.0/canvas-all.js"></script>
-    <style>
-        html, body {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            width: 100%;
-            font-family: sans-serif;
-        }
-        .top-bar {
-            background-color: #f4f4f4;
-            padding: 10px;
-            text-align: center;
-            box-shadow: 0px 2px 5px rgba(0,0,0,0.1);
-        }
-        #secretDisplay {
-            padding: 20px;
-            font-family: monospace;
-            background-color: #fafafa;
-            border-top: 1px solid #ddd;
-            white-space: pre-wrap;
-        }
-    </style>
-</head>
-<body>
-    <div class="top-bar">
-        <h2>Salesforce Canvas Payload Viewer</h2>
-    </div>
-    <div id="secretDisplay">{{ data }}</div>
-
-    <script>
-        Sfdc.canvas.onReady(function() {
-            const sr = Sfdc.canvas.context().signedRequest;
-            if (sr) {
-                console.log("✅ Signed Request found. Sending to backend...");
-                fetch("/", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/x-www-form-urlencoded"
-                    },
-                    body: new URLSearchParams({
-                        signed_request: sr
-                    })
-                }).then(() => {
-                    console.log("✅ POST complete. Reloading...");
-                    window.location.href = "/";
-                });
-            } else {
-                console.warn("⚠️ No signedRequest found in canvas context.");
-            }
-        });
-    </script>
-</body>
-</html>
-'''
 
 def b64_decode(data):
     data += '=' * (-len(data) % 4)
@@ -97,32 +31,74 @@ def decode_signed_request(signed_request, secret):
         ).digest()
 
         if not hmac.compare_digest(sig, expected_sig):
-            return {"error": "Signature mismatch"}, False
+            return {"error": "Signature mismatch"}
 
-        return data, True
-
+        return data
     except Exception as e:
-        return {"error": f"Decoding failed: {str(e)}"}, False
+        return {"error": f"Decoding failed: {str(e)}"}
 
-@app.route('/', methods=['GET', 'POST'])
+def extract_signed_request_from_salesforce():
+    # Headless browser setup
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+
+    driver = webdriver.Chrome(options=options)
+
+    try:
+        print("Opening Salesforce Canvas App...")
+        driver.get(SALESFORCE_CANVAS_APP_URL)
+        time.sleep(8)  # Adjust depending on Salesforce load time
+
+        print("Extracting signedRequest...")
+        signed_request = driver.execute_script("return Sfdc.canvas.context().signedRequest")
+
+        if signed_request:
+            print("Signed request found ✅")
+            return signed_request
+        else:
+            print("⚠️ signedRequest not found.")
+            return None
+    except Exception as e:
+        print("Error with Selenium:", e)
+        return None
+    finally:
+        driver.quit()
+
+@app.route('/')
 def home():
-    global latest_payload
+    signed_request = extract_signed_request_from_salesforce()
 
-    if request.method == 'POST':
-        print("🔄 POST received")
-        signed_request = request.form.get('signed_request')
+    if not signed_request:
+        display_data = "❌ Failed to extract signedRequest from Salesforce Canvas."
+    else:
+        decoded = decode_signed_request(signed_request, CONSUMER_SECRET)
+        display_data = json.dumps(decoded, indent=2)
 
-        if not signed_request:
-            return jsonify({"error": "Missing signed_request"}), 400
-
-        decoded_data, valid = decode_signed_request(signed_request, CONSUMER_SECRET)
-        latest_payload = decoded_data
-        print("📥 Decoded from Salesforce:\n", json.dumps(decoded_data, indent=2))
-        return '', 204
-
-    print("👀 GET received")
-    display = json.dumps(latest_payload, indent=2) if latest_payload else "No data submitted yet."
-    return render_template_string(HTML_TEMPLATE, data=display)
+    return render_template_string('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Salesforce Canvas Payload Viewer</title>
+        <style>
+            body {
+                font-family: sans-serif;
+                padding: 20px;
+            }
+            pre {
+                background-color: #f4f4f4;
+                padding: 15px;
+                border-radius: 5px;
+            }
+        </style>
+    </head>
+    <body>
+        <h2>Salesforce Canvas Payload</h2>
+        <pre>{{ data }}</pre>
+    </body>
+    </html>
+    ''', data=display_data)
 
 if __name__ == '__main__':
     app.run(debug=True)
