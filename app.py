@@ -69,11 +69,14 @@ def decode_direct():
     global latest_payload
     signed_request = request.form.get('signed_request')
 
+    print("📥 Received signed_request:", signed_request[:50] + "...")  # partial log for debug
+
     if not signed_request:
         return {"error": "Missing signed_request"}, 400
 
     decoded = decode_signed_request(signed_request, CONSUMER_SECRET)
     latest_payload = decoded
+    print("✅ Decoded Payload:\n", json.dumps(decoded, indent=2))
     return {"status": "Decoded"}, 200
 
 if __name__ == '__main__':
