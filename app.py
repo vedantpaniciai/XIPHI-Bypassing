@@ -3,15 +3,13 @@ import base64
 import json
 import hmac
 import hashlib
-import time
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-
-# Constants
-CONSUMER_SECRET = 'FFE6251BCA3AFB6A3301E39F43597EC67439F8C58EE5F74A0992F40CEA1DC17D'
-SALESFORCE_CANVAS_APP_URL = "https://your-salesforce-instance.lightning.force.com/lightning/n/FastApp"  # 👈 Update this!
 
 app = Flask(__name__)
+
+# Replace with your Connected App Consumer Secret
+CONSUMER_SECRET = 'FFE6251BCA3AFB6A3301E39F43597EC67439F8C58EE5F74A0992F40CEA1DC17D'
+
+latest_payload = {}
 
 def b64_decode(data):
     data += '=' * (-len(data) % 4)
@@ -37,50 +35,16 @@ def decode_signed_request(signed_request, secret):
     except Exception as e:
         return {"error": f"Decoding failed: {str(e)}"}
 
-def extract_signed_request_from_salesforce():
-    # Headless browser setup
-    options = Options()
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-
-    driver = webdriver.Chrome(options=options)
-
-    try:
-        print("Opening Salesforce Canvas App...")
-        driver.get(SALESFORCE_CANVAS_APP_URL)
-        time.sleep(8)  # Adjust depending on Salesforce load time
-
-        print("Extracting signedRequest...")
-        signed_request = driver.execute_script("return Sfdc.canvas.context().signedRequest")
-
-        if signed_request:
-            print("Signed request found ✅")
-            return signed_request
-        else:
-            print("⚠️ signedRequest not found.")
-            return None
-    except Exception as e:
-        print("Error with Selenium:", e)
-        return None
-    finally:
-        driver.quit()
-
-@app.route('/')
+@app.route('/', methods=['GET'])
 def home():
-    signed_request = extract_signed_request_from_salesforce()
-
-    if not signed_request:
-        display_data = "❌ Failed to extract signedRequest from Salesforce Canvas."
-    else:
-        decoded = decode_signed_request(signed_request, CONSUMER_SECRET)
-        display_data = json.dumps(decoded, indent=2)
-
+    display_data = json.dumps(latest_payload, indent=2) if latest_payload else "No data submitted yet."
     return render_template_string('''
     <!DOCTYPE html>
     <html>
     <head>
         <title>Salesforce Canvas Payload Viewer</title>
+        <script src="https://login.salesforce.com/canvas/sdk/js/63.0/canvas-all.js"></script>
+        <script defer src="/static/post-signed-request.js"></script>
         <style>
             body {
                 font-family: sans-serif;
@@ -99,6 +63,18 @@ def home():
     </body>
     </html>
     ''', data=display_data)
+
+@app.route('/decode-direct', methods=['POST'])
+def decode_direct():
+    global latest_payload
+    signed_request = request.form.get('signed_request')
+
+    if not signed_request:
+        return {"error": "Missing signed_request"}, 400
+
+    decoded = decode_signed_request(signed_request, CONSUMER_SECRET)
+    latest_payload = decoded
+    return {"status": "Decoded"}, 200
 
 if __name__ == '__main__':
     app.run(debug=True)
